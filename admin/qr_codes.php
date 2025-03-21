@@ -627,6 +627,40 @@ $extra_css .= '
         grid-template-columns: 1fr;
     }
 }
+
+/* Add print styles */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    .qr-card.printing, .qr-card.printing * {
+        visibility: visible;
+    }
+    
+    .qr-card.printing {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: none !important;
+    }
+    
+    .qr-card.printing .qr-actions,
+    .qr-card.printing .btn {
+        display: none !important;
+    }
+    
+    .qr-card.printing .qr-image {
+        max-width: 300px;
+        padding: 2rem;
+    }
+    
+    .qr-card.printing .table-number {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+}
 </style>
 ';
 
@@ -661,7 +695,7 @@ ob_start();
                 $qr_path = __DIR__ . "/../uploads/qrcodes/" . basename($table['image_path']);
             }
         ?>
-        <div class="qr-card">
+        <div class="qr-card" data-table-id="<?php echo $table['id']; ?>">
             <div class="card-header">
                 <h2 class="table-number">
                     <i class="fas fa-utensils"></i>
@@ -703,6 +737,11 @@ ob_start();
                     <button type="button" class="btn btn-info" onclick="window.open('<?php echo htmlspecialchars($qr_file); ?>', '_blank')">
                         <i class="fas fa-eye"></i>
                         <span>View QR</span>
+                    </button>
+                    
+                    <button type="button" class="btn btn-info" onclick="printQRCode(<?php echo $table['id']; ?>)">
+                        <i class="fas fa-print"></i>
+                        <span>Print QR</span>
                     </button>
                 <?php endif; ?>
                 
@@ -780,10 +819,34 @@ function generateQR(tableId, tableNumber) {
     form.submit();
 }
 
-// Add this to your existing JavaScript
-function printQRCode() {
-    window.print();
+// Update the printQRCode function
+function printQRCode(tableId) {
+    // Remove printing class from all cards
+    document.querySelectorAll('.qr-card').forEach(card => {
+        card.classList.remove('printing');
+    });
+    
+    // Add printing class to selected card
+    const cardToPrint = document.querySelector(`.qr-card[data-table-id="${tableId}"]`);
+    if (cardToPrint) {
+        cardToPrint.classList.add('printing');
+        
+        // Print the document
+        window.print();
+        
+        // Remove printing class after printing
+        setTimeout(() => {
+            cardToPrint.classList.remove('printing');
+        }, 500);
+    }
 }
+
+// Add event listener for after print
+window.onafterprint = function() {
+    document.querySelectorAll('.qr-card').forEach(card => {
+        card.classList.remove('printing');
+    });
+};
 </script>
 
 <!-- Add Table Modal -->
