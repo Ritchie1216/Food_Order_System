@@ -77,6 +77,20 @@ try {
     $items_stmt->execute($order_ids);
     $items = $items_stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Get current tax settings with no caching
+    $db->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+    $settings_query = "SELECT tax_rate, currency_symbol FROM settings LIMIT 1";
+    $settings_stmt = $db->prepare($settings_query);
+    $settings_stmt->execute();
+    $settings = $settings_stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Force refresh the tax rate from database
+    $tax_rate = floatval($settings['tax_rate']);
+    if ($tax_rate <= 0) {
+        $tax_rate = 6; // Default to 6% only if database value is invalid
+    }
+    $currency_symbol = $settings['currency_symbol'] ?? 'RM';
+    
     // Process items and calculate totals
     $items_array = [];
     $subtotal = 0;
@@ -106,9 +120,9 @@ try {
         exit();
     }
     
-    // Calculate SST and total
-    $sst_amount = $subtotal * 0.06;  // Calculate 6% SST
-    $total_with_sst = $subtotal + $sst_amount; // Final total with SST
+    // Calculate tax and total
+    $tax_amount = $subtotal * ($tax_rate / 100);  // Calculate tax based on settings
+    $total_with_tax = $subtotal + $tax_amount; // Final total with tax
     
     // Store receipt data
     $receipt_data = [
@@ -117,11 +131,13 @@ try {
         'table_number' => $table_number,
         'items' => $items_array,
         'subtotal' => $subtotal,
-        'sst_amount' => $sst_amount,
-        'total_amount' => $total_with_sst,
+        'tax_rate' => $tax_rate,
+        'tax_amount' => $tax_amount,
+        'total_amount' => $total_with_tax,
         'cash_received' => $payment_details['cash_received'],
         'change_amount' => $payment_details['change_amount'],
-        'payment_date' => $payment_details['payment_date']
+        'payment_date' => $payment_details['payment_date'],
+        'currency_symbol' => $currency_symbol
     ];
     
 } catch (Exception $e) {
@@ -348,8 +364,8 @@ try {
                     <?php endif; ?>
                 </div>
                 <div class="item-quantity"><?php echo $item['quantity']; ?></div>
-                <div class="item-price">RM <?php echo number_format($item['price'], 2); ?></div>
-                <div class="item-total">RM <?php echo number_format($item['total'], 2); ?></div>
+                <div class="item-price"><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($item['price'], 2); ?></div>
+                <div class="item-total"><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($item['total'], 2); ?></div>
             </div>
             <?php endforeach; ?>
         </div>
@@ -357,26 +373,26 @@ try {
         <div class="receipt-totals">
             <p>
                 <span>Subtotal:</span>
-                <span>RM <?php echo number_format($receipt_data['subtotal'], 2); ?></span>
+                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($receipt_data['subtotal'], 2); ?></span>
             </p>
             <p>
-                <span>SST (6%):</span>
-                <span>RM <?php echo number_format($receipt_data['sst_amount'], 2); ?></span>
+                <span>SST (<?php echo number_format($receipt_data['tax_rate'], 1); ?>%):</span>
+                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($receipt_data['tax_amount'], 2); ?></span>
             </p>
             <p class="total">
                 <span>Total:</span>
-                <span>RM <?php echo number_format($receipt_data['total_amount'], 2); ?></span>
+                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($receipt_data['total_amount'], 2); ?></span>
             </p>
         </div>
         
         <div class="receipt-payment">
             <p>
-                <span>Cash:</span>
-                <span>RM <?php echo number_format($receipt_data['cash_received'], 2); ?></span>
+                <span>Cash Received:</span>
+                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($receipt_data['cash_received'], 2); ?></span>
             </p>
             <p>
                 <span>Change:</span>
-                <span>RM <?php echo number_format($receipt_data['change_amount'], 2); ?></span>
+                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($receipt_data['change_amount'], 2); ?></span>
             </p>
         </div>
         

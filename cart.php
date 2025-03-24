@@ -46,7 +46,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['checkout'])) {
         $subtotal = array_reduce($cart_items, function($carry, $item) {
             return $carry + ($item['price'] * $item['quantity']);
         }, 0);
-        $total_amount = $subtotal + ($subtotal * 0.06); // Add 6% SST
+
+        // Get current tax rate from settings
+        $tax_rate_query = "SELECT tax_rate FROM settings LIMIT 1";
+        $tax_rate_stmt = $db->prepare($tax_rate_query);
+        $tax_rate_stmt->execute();
+        $settings = $tax_rate_stmt->fetch(PDO::FETCH_ASSOC);
+        $tax_rate = floatval($settings['tax_rate'] ?? 6); // Use default 6% if no setting found
+
+        $total_amount = $subtotal + ($subtotal * ($tax_rate/100)); // Add SST based on current tax rate
         
         // Start transaction
         $db->beginTransaction();
@@ -112,6 +120,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['checkout'])) {
 // Get table number and token from URL
 $table_number = isset($_GET['table']) ? htmlspecialchars($_GET['table']) : null;
 $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
+
+// Get current tax rate from settings
+try {
+    $tax_rate_query = "SELECT tax_rate FROM settings LIMIT 1";
+    $tax_rate_stmt = $db->prepare($tax_rate_query);
+    $tax_rate_stmt->execute();
+    $settings = $tax_rate_stmt->fetch(PDO::FETCH_ASSOC);
+    $tax_rate = floatval($settings['tax_rate'] ?? 9); // Use default 9% if no setting found
+} catch (Exception $e) {
+    error_log("Error fetching tax rate: " . $e->getMessage());
+    $tax_rate = 9; // Default to 9% if there's an error
+}
 
 // Validate token
 if ($table_number && $token) {
@@ -593,7 +613,7 @@ if ($table_number && $token) {
                         <span id="subtotal">RM 0.00</span>
                     </div>
                     <div class="summary-item">
-                        <span>SST (6%)</span>
+                        <span>SST (<?php echo number_format($tax_rate, 1); ?>%)</span>
                         <span id="tax">RM 0.00</span>
                     </div>
                     <div class="summary-total">
@@ -681,7 +701,10 @@ if ($table_number && $token) {
         
         function updateSummary() {
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const sst = subtotal * 0.06; // Malaysian SST 6%
+            
+            // Get tax rate from PHP
+            const taxRate = <?php echo $tax_rate; ?>;
+            const sst = subtotal * (taxRate/100);
             const total = subtotal + sst;
             
             document.getElementById('subtotal').textContent = `RM ${subtotal.toFixed(2)}`;

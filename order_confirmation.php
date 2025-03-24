@@ -30,12 +30,16 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
     
     <style>
         :root {
-            --primary-color: #2563eb;
-            --secondary-color: #1d4ed8;
-            --success-color: #10b981;
-            --background-color: #f8fafc;
-            --text-color: #1e293b;
-            --card-background: #ffffff;
+            --primary-color: #c8a165;
+            --secondary-color: #b38b4d;
+            --success-color: #c8a165;
+            --background-color: #1a1a1a;
+            --text-color: #ffffff;
+            --text-muted: #cccccc;
+            --card-background: #2d2d2d;
+            --border-color: rgba(200, 161, 101, 0.2);
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --box-shadow-hover: 0 8px 15px rgba(0, 0, 0, 0.4);
         }
 
         body {
@@ -43,13 +47,15 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
             background-color: var(--background-color);
             padding-top: 80px;
             color: var(--text-color);
+            line-height: 1.6;
         }
 
         .navbar {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(45, 45, 45, 0.95);
             backdrop-filter: blur(10px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--box-shadow);
             padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .navbar-brand {
@@ -59,32 +65,31 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .navbar-brand:hover {
+            transform: translateY(-2px);
         }
 
         .navbar-brand i {
             font-size: 1.8rem;
         }
 
-        /* Table Number Display Styles */
         .table-info-banner {
-            position: static;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.8));
+            background: rgba(45, 45, 45, 0.9);
             backdrop-filter: blur(10px);
             padding: 8px 16px;
-            font-family: 'Poppins', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid var(--border-color);
             margin: 0 15px;
             transition: all 0.3s ease;
         }
 
         .table-info-banner:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+            border-color: var(--primary-color);
+            box-shadow: var(--box-shadow-hover);
         }
 
         .table-info-banner .table-number {
@@ -94,10 +99,9 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
             letter-spacing: 0.5px;
         }
 
-        /* View Orders Button Style */
         .view-orders-btn {
-            background: var(--primary-color);
-            color: white;
+            background: linear-gradient(145deg, var(--primary-color), var(--secondary-color));
+            color: var(--background-color);
             padding: 0.5rem 1.25rem;
             border-radius: 50px;
             font-weight: 500;
@@ -110,56 +114,74 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
         }
 
         .view-orders-btn:hover {
-            background: var(--secondary-color);
             transform: translateY(-2px);
-            color: white;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
-        .view-orders-btn i {
-            font-size: 1rem;
+            box-shadow: 0 4px 12px rgba(200, 161, 101, 0.3);
+            color: var(--background-color);
         }
 
         .confirmation-container {
             background: var(--card-background);
             border-radius: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--box-shadow);
             padding: 3rem;
             text-align: center;
             max-width: 600px;
             margin: 2rem auto;
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s ease;
+        }
+
+        .confirmation-container:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--box-shadow-hover);
+            border-color: var(--primary-color);
         }
 
         .success-icon {
             width: 80px;
             height: 80px;
-            background: var(--success-color);
+            background: linear-gradient(145deg, var(--primary-color), var(--secondary-color));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 2rem;
-            animation: scaleIn 0.5s ease-out;
+            animation: scaleIn 0.5s ease-out, pulse 2s infinite;
+            box-shadow: 0 0 20px rgba(200, 161, 101, 0.3);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
 
         .success-icon i {
-            color: white;
+            color: var(--background-color);
             font-size: 2.5rem;
         }
 
         .confirmation-title {
-            color: var(--success-color);
+            color: var(--primary-color);
             font-size: 2rem;
             font-weight: 700;
             margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .order-details {
-            background: #f8fafc;
+            background: rgba(45, 45, 45, 0.5);
             border-radius: 15px;
             padding: 2rem;
             margin: 2rem 0;
             text-align: left;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .order-details:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--box-shadow-hover);
         }
 
         .order-number {
@@ -167,46 +189,41 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
             font-weight: 600;
             color: var(--primary-color);
             margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .order-number::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--primary-color);
+            border-radius: 2px;
+            display: inline-block;
         }
 
         .detail-row {
             display: flex;
             justify-content: space-between;
             margin-bottom: 0.5rem;
-        }
-
-        .back-to-menu {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            border-radius: 50px;
-            background: var(--primary-color);
-            color: white;
-            text-decoration: none;
-            font-weight: 500;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-color);
             transition: all 0.3s ease;
         }
 
-        .back-to-menu:hover {
-            background: var(--secondary-color);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            color: white;
-        }
-
-        @keyframes scaleIn {
-            from {
-                transform: scale(0);
-            }
-            to {
-                transform: scale(1);
-            }
+        .detail-row:hover {
+            background: rgba(200, 161, 101, 0.1);
+            padding-left: 1rem;
+            padding-right: 1rem;
+            margin-left: -1rem;
+            margin-right: -1rem;
+            border-radius: 8px;
         }
 
         .order-items {
             margin-top: 1.5rem;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--border-color);
             padding-top: 1.5rem;
         }
 
@@ -214,13 +231,20 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
             display: flex;
             justify-content: space-between;
             margin-bottom: 0.5rem;
-            font-size: 0.95rem;
+            padding: 0.75rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .order-item:hover {
+            background: rgba(200, 161, 101, 0.1);
+            transform: translateX(5px);
         }
 
         .order-total {
             margin-top: 1.5rem;
             padding-top: 1.5rem;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--border-color);
             font-weight: 700;
             font-size: 1.2rem;
             color: var(--primary-color);
@@ -230,58 +254,94 @@ $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
             display: flex;
             gap: 1rem;
             justify-content: center;
+            margin-top: 2rem;
         }
 
-        .view-orders-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
+        .back-to-menu {
+            background: transparent;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
             padding: 0.75rem 1.5rem;
             border-radius: 50px;
-            background: var(--primary-color);
-            color: white;
             text-decoration: none;
             font-weight: 500;
             transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        .view-orders-btn:hover {
+        .back-to-menu:hover {
+            background: var(--primary-color);
+            color: var(--background-color);
             transform: translateY(-2px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            color: white;
-            background: var(--secondary-color);
+            box-shadow: var(--box-shadow-hover);
         }
 
         @media (max-width: 768px) {
+            .confirmation-container {
+                padding: 2rem;
+                margin: 1rem;
+            }
+
             .action-buttons {
                 flex-direction: column;
             }
-            
+
             .view-orders-btn,
             .back-to-menu {
                 width: 100%;
                 justify-content: center;
+                padding: 1rem;
             }
-            
+
+            .order-details {
+                padding: 1.5rem;
+            }
+
             .table-info-banner {
                 margin: 0 10px;
                 padding: 6px 12px;
             }
-
-            .table-info-banner .table-number {
-                font-size: 14px;
-            }
         }
-        
+
         @media (max-width: 480px) {
+            .navbar {
+                padding: 0.5rem 0;
+            }
+
+            .navbar-brand {
+                font-size: 1.2rem;
+            }
+
+            .confirmation-container {
+                padding: 1.5rem;
+            }
+
+            .success-icon {
+                width: 60px;
+                height: 60px;
+            }
+
+            .confirmation-title {
+                font-size: 1.5rem;
+            }
+
             .table-info-banner {
                 margin: 0 8px;
                 padding: 4px 10px;
             }
 
-            .table-info-banner .table-number {
-                font-size: 13px;
+            .order-item {
+                flex-direction: column;
+                gap: 0.5rem;
+                align-items: flex-start;
             }
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
         }
     </style>
 </head>

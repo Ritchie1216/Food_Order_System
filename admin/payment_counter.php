@@ -145,9 +145,18 @@ if (isset($_POST['process_payment'])) {
             }
         }
         
-        // Calculate SST (6%)
-        $sst_amount = $subtotal * 0.06;
-        $total_with_sst = $subtotal + $sst_amount;
+        // Get current tax settings
+        $settings_query = "SELECT tax_rate FROM settings LIMIT 1";
+        $settings_stmt = $db->prepare($settings_query);
+        $settings_stmt->execute();
+        $settings = $settings_stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Get tax rate from settings or use default
+        $tax_rate = floatval($settings['tax_rate'] ?? 6);
+        
+        // Calculate SST and total
+        $sst_amount = $subtotal * ($tax_rate / 100);  // Calculate SST using tax rate from settings
+        $total_with_sst = $subtotal + $sst_amount; // Final total with SST
         
         // Store receipt data in session for printing
         $_SESSION['receipt_data'] = [
@@ -156,7 +165,8 @@ if (isset($_POST['process_payment'])) {
             'table_number' => $orders_details[0]['table_number'],
             'items' => $items_array,
             'subtotal' => $subtotal,
-            'sst_amount' => $sst_amount,
+            'tax_rate' => $tax_rate,
+            'tax_amount' => $sst_amount,
             'total_amount' => $total_with_sst,
             'cash_received' => $cash_received,
             'change_amount' => $change,
@@ -742,12 +752,55 @@ $page_title = "Payment Counter";
                 justify-content: center;
             }
         }
+
+        .back-dashboard-btn {
+            background: linear-gradient(145deg, var(--primary), var(--primary-dark));
+            color: var(--surface);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-weight: 500;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .back-dashboard-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            color: var(--surface);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .restaurant-header .d-flex {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .back-dashboard-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            h1 {
+                text-align: center;
+                font-size: 1.5rem !important;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="payment-counter">
         <div class="restaurant-header">
-            <h1><i class="fas fa-cash-register"></i> Restaurant Payment Counter</h1>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-cash-register"></i> Restaurant Payment Counter</h1>
+                <a href="dashboard.php" class="back-dashboard-btn">
+                    <i class="fas fa-th-large"></i> Back to Dashboard
+                </a>
+            </div>
             
             <!-- Add search form -->
             <div class="search-section">
@@ -847,8 +900,17 @@ $page_title = "Payment Counter";
 
                     <div class="payment-section">
                         <?php
+                        // Get current tax settings
+                        $settings_query = "SELECT tax_rate FROM settings LIMIT 1";
+                        $settings_stmt = $db->prepare($settings_query);
+                        $settings_stmt->execute();
+                        $settings = $settings_stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        // Get tax rate from settings or use default
+                        $tax_rate = floatval($settings['tax_rate'] ?? 6);
+                        
                         // Calculate SST and total
-                        $sst_amount = $subtotal * 0.06;  // Calculate 6% SST
+                        $sst_amount = $subtotal * ($tax_rate / 100);  // Calculate SST using tax rate from settings
                         $total_with_sst = $subtotal + $sst_amount; // Final total with SST
                         ?>
                         <div class="amount-breakdown">
@@ -857,7 +919,7 @@ $page_title = "Payment Counter";
                                 <span>RM <?php echo number_format($subtotal, 2); ?></span>
                             </div>
                             <div class="amount-row">
-                                <span>SST (6%):</span>
+                                <span>SST (<?php echo number_format($tax_rate, 1); ?>%):</span>
                                 <span>RM <?php echo number_format($sst_amount, 2); ?></span>
                             </div>
                             <div class="total-amount">

@@ -11,6 +11,18 @@ $orderModel = new Order($db);
 $table_number = isset($_GET['table']) ? htmlspecialchars($_GET['table']) : null;
 $token = isset($_GET['token']) ? htmlspecialchars($_GET['token']) : null;
 
+// Get current tax rate from settings
+try {
+    $tax_rate_query = "SELECT tax_rate FROM settings LIMIT 1";
+    $tax_rate_stmt = $db->prepare($tax_rate_query);
+    $tax_rate_stmt->execute();
+    $settings = $tax_rate_stmt->fetch(PDO::FETCH_ASSOC);
+    $tax_rate = floatval($settings['tax_rate'] ?? 9); // Use default 9% if no setting found
+} catch (Exception $e) {
+    error_log("Error fetching tax rate: " . $e->getMessage());
+    $tax_rate = 9; // Default to 9% if there's an error
+}
+
 // Validate token and get table orders
 $table_orders = [];
 $error_message = '';
@@ -603,8 +615,8 @@ if ($table_number && $token) {
                 </div>
                 <div class="order-footer">
                     <?php
-                    // Calculate SST (assuming 6% tax rate)
-                    $sst_rate = 0.06;
+                    // Calculate SST using current tax rate
+                    $sst_rate = $tax_rate / 100;
                     $subtotal = $order['total_amount'] / (1 + $sst_rate);
                     $sst_amount = $order['total_amount'] - $subtotal;
                     ?>
@@ -613,7 +625,7 @@ if ($table_number && $token) {
                         <span>RM <?php echo number_format($subtotal, 2); ?></span>
                     </div>
                     <div class="order-sst">
-                        <span>SST (6%)</span>
+                        <span>SST (<?php echo number_format($tax_rate, 1); ?>%)</span>
                         <span>RM <?php echo number_format($sst_amount, 2); ?></span>
                     </div>
                     <div class="order-total">

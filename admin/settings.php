@@ -17,9 +17,156 @@ if (!$auth->isLoggedIn()) {
 $success_message = '';
 $error_message = '';
 
+// Check if settings table exists and create if not
+try {
+    $check_table = "SHOW TABLES LIKE 'settings'";
+    $table_exists = $db->query($check_table)->rowCount() > 0;
+    
+    if (!$table_exists) {
+        // Create settings table
+        $create_table = "CREATE TABLE IF NOT EXISTS settings (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            restaurant_name VARCHAR(255) NOT NULL DEFAULT 'My Restaurant',
+            contact_email VARCHAR(255) NOT NULL DEFAULT 'contact@restaurant.com',
+            opening_time TIME NOT NULL DEFAULT '09:00:00',
+            closing_time TIME NOT NULL DEFAULT '22:00:00',
+            last_order_time TIME NOT NULL DEFAULT '21:30:00',
+            online_ordering TINYINT(1) DEFAULT 1,
+            reservations TINYINT(1) DEFAULT 1,
+            order_notifications TINYINT(1) DEFAULT 1,
+            cash_payments TINYINT(1) DEFAULT 1,
+            card_payments TINYINT(1) DEFAULT 1,
+            digital_payments TINYINT(1) DEFAULT 0,
+            tax_rate DECIMAL(5,2) DEFAULT 6.00,
+            currency_symbol VARCHAR(10) DEFAULT 'RM',
+            currency_code VARCHAR(10) DEFAULT 'MYR',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )";
+        $db->exec($create_table);
+        error_log("Created settings table");
+    }
+} catch (Exception $e) {
+    error_log("Error checking/creating settings table: " . $e->getMessage());
+}
+
+// Get current settings
+try {
+    $settings_query = "SELECT * FROM settings LIMIT 1";
+    $settings_stmt = $db->prepare($settings_query);
+    $settings_stmt->execute();
+    $settings = $settings_stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$settings) {
+        // Initialize default settings if none exist
+        $default_settings = [
+            'restaurant_name' => 'My Restaurant',
+            'contact_email' => 'contact@restaurant.com',
+            'opening_time' => '09:00',
+            'closing_time' => '22:00',
+            'last_order_time' => '21:30',
+            'online_ordering' => 1,
+            'reservations' => 1,
+            'order_notifications' => 1,
+            'cash_payments' => 1,
+            'card_payments' => 1,
+            'digital_payments' => 0,
+            'tax_rate' => 6,
+            'currency_symbol' => 'RM',
+            'currency_code' => 'MYR'
+        ];
+        
+        $fields = implode(', ', array_keys($default_settings));
+        $values = implode(', ', array_fill(0, count($default_settings), '?'));
+        $insert_query = "INSERT INTO settings ($fields) VALUES ($values)";
+        
+        try {
+            $insert_stmt = $db->prepare($insert_query);
+            $insert_stmt->execute(array_values($default_settings));
+            error_log("Inserted default settings");
+            
+            // Fetch the newly inserted settings
+            $settings_stmt = $db->prepare($settings_query);
+            $settings_stmt->execute();
+            $settings = $settings_stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log("Error inserting default settings: " . $e->getMessage());
+            throw $e;
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error fetching settings: " . $e->getMessage());
+    $error_message = "Error loading settings: " . $e->getMessage();
+    $settings = [];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Process form submission here
-    $success_message = "Settings updated successfully!";
+    try {
+        // Start transaction
+        $db->beginTransaction();
+        
+        // Prepare update query
+        $update_fields = [
+            'restaurant_name' => $_POST['restaurant_name'],
+            'contact_email' => $_POST['contact_email'],
+            'opening_time' => $_POST['opening_time'],
+            'closing_time' => $_POST['closing_time'],
+            'last_order_time' => $_POST['last_order_time'],
+            'online_ordering' => isset($_POST['online_ordering']) ? 1 : 0,
+            'reservations' => isset($_POST['reservations']) ? 1 : 0,
+            'order_notifications' => isset($_POST['order_notifications']) ? 1 : 0,
+            'cash_payments' => isset($_POST['cash_payments']) ? 1 : 0,
+            'card_payments' => isset($_POST['card_payments']) ? 1 : 0,
+            'digital_payments' => isset($_POST['digital_payments']) ? 1 : 0,
+            'tax_rate' => $_POST['tax_rate'],
+            'currency_symbol' => $_POST['currency_symbol'],
+            'currency_code' => $_POST['currency_code']
+        ];
+        
+        // If this is the first record, do an insert instead of update
+        if (empty($settings['id'])) {
+            $fields = implode(', ', array_keys($update_fields));
+            $values = implode(', ', array_fill(0, count($update_fields), '?'));
+            $query = "INSERT INTO settings ($fields) VALUES ($values)";
+            $stmt = $db->prepare($query);
+            $result = $stmt->execute(array_values($update_fields));
+        } else {
+            // Build the SET part of the query
+            $set_clauses = [];
+            foreach ($update_fields as $field => $value) {
+                $set_clauses[] = "$field = :$field";
+            }
+            
+            // Create the complete update query
+            $update_query = "UPDATE settings SET " . implode(', ', $set_clauses);
+            $update_stmt = $db->prepare($update_query);
+            
+            // Bind all parameters
+            foreach ($update_fields as $field => $value) {
+                $update_stmt->bindValue(":$field", $value);
+            }
+            
+            $result = $update_stmt->execute();
+        }
+        
+        if ($result) {
+            $db->commit();
+            $success_message = "Settings updated successfully!";
+            
+            // Refresh settings
+            $settings_query = "SELECT * FROM settings LIMIT 1";
+            $settings_stmt = $db->prepare($settings_query);
+            $settings_stmt->execute();
+            $settings = $settings_stmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            throw new Exception("Failed to update settings");
+        }
+        
+    } catch (Exception $e) {
+        $db->rollBack();
+        error_log("Error updating settings: " . $e->getMessage());
+        $error_message = "Error updating settings: " . $e->getMessage();
+    }
 }
 
 // Custom CSS with modern design
@@ -285,14 +432,14 @@ ob_start();
                 <div class="col-md-6">
                     <div class="form-group">
                         <label class="form-label">Restaurant Name</label>
-                        <input type="text" class="form-control" name="restaurant_name" value="My Restaurant">
+                        <input type="text" class="form-control" name="restaurant_name" value="<?php echo htmlspecialchars($settings['restaurant_name'] ?? 'My Restaurant'); ?>">
                         <div class="form-text">This name will appear on receipts and the customer interface</div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-group">
                         <label class="form-label">Contact Email</label>
-                        <input type="email" class="form-control" name="contact_email" value="contact@restaurant.com">
+                        <input type="email" class="form-control" name="contact_email" value="<?php echo htmlspecialchars($settings['contact_email'] ?? 'contact@restaurant.com'); ?>">
                         <div class="form-text">Primary email for customer support and notifications</div>
                     </div>
                 </div>
@@ -308,15 +455,15 @@ ob_start();
             <div class="time-grid">
                 <div class="form-group">
                     <label class="form-label">Opening Time</label>
-                    <input type="time" class="form-control" name="opening_time" value="09:00">
+                    <input type="time" class="form-control" name="opening_time" value="<?php echo htmlspecialchars($settings['opening_time'] ?? '09:00'); ?>">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Closing Time</label>
-                    <input type="time" class="form-control" name="closing_time" value="22:00">
+                    <input type="time" class="form-control" name="closing_time" value="<?php echo htmlspecialchars($settings['closing_time'] ?? '22:00'); ?>">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Last Order Time</label>
-                    <input type="time" class="form-control" name="last_order_time" value="21:30">
+                    <input type="time" class="form-control" name="last_order_time" value="<?php echo htmlspecialchars($settings['last_order_time'] ?? '21:30'); ?>">
                 </div>
             </div>
         </div>
@@ -333,7 +480,7 @@ ob_start();
                     <p class="switch-description">Allow customers to place orders through the website</p>
                 </div>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="online_ordering" checked>
+                    <input class="form-check-input" type="checkbox" name="online_ordering" <?php echo ($settings['online_ordering'] ?? 1) ? 'checked' : ''; ?>>
                 </div>
             </div>
             <div class="custom-switch">
@@ -342,7 +489,7 @@ ob_start();
                     <p class="switch-description">Enable table booking system</p>
                 </div>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="reservations" checked>
+                    <input class="form-check-input" type="checkbox" name="reservations" <?php echo ($settings['reservations'] ?? 1) ? 'checked' : ''; ?>>
                 </div>
             </div>
             <div class="custom-switch">
@@ -351,7 +498,7 @@ ob_start();
                     <p class="switch-description">Send email notifications for new orders</p>
                 </div>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="order_notifications" checked>
+                    <input class="form-check-input" type="checkbox" name="order_notifications" <?php echo ($settings['order_notifications'] ?? 1) ? 'checked' : ''; ?>>
                 </div>
             </div>
         </div>
@@ -368,7 +515,7 @@ ob_start();
                     <p class="switch-description">Accept cash payments on delivery</p>
                 </div>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="cash_payments" checked>
+                    <input class="form-check-input" type="checkbox" name="cash_payments" <?php echo ($settings['cash_payments'] ?? 1) ? 'checked' : ''; ?>>
                 </div>
             </div>
             <div class="custom-switch">
@@ -377,7 +524,7 @@ ob_start();
                     <p class="switch-description">Accept credit/debit card payments</p>
                 </div>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="card_payments" checked>
+                    <input class="form-check-input" type="checkbox" name="card_payments" <?php echo ($settings['card_payments'] ?? 1) ? 'checked' : ''; ?>>
                 </div>
             </div>
             <div class="custom-switch">
@@ -386,7 +533,7 @@ ob_start();
                     <p class="switch-description">Accept payments through digital wallets</p>
                 </div>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="digital_payments">
+                    <input class="form-check-input" type="checkbox" name="digital_payments" <?php echo ($settings['digital_payments'] ?? 0) ? 'checked' : ''; ?>>
                 </div>
             </div>
         </div>
@@ -401,20 +548,20 @@ ob_start();
                 <div class="col-md-4">
                     <div class="form-group">
                         <label class="form-label">Tax Rate (%)</label>
-                        <input type="number" class="form-control" name="tax_rate" value="6" min="0" max="100" step="0.1">
+                        <input type="number" class="form-control" name="tax_rate" value="<?php echo htmlspecialchars($settings['tax_rate'] ?? 6); ?>" min="0" max="100" step="0.1">
                         <div class="form-text">Applied to all orders</div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-group">
                         <label class="form-label">Currency Symbol</label>
-                        <input type="text" class="form-control" name="currency_symbol" value="RM">
+                        <input type="text" class="form-control" name="currency_symbol" value="<?php echo htmlspecialchars($settings['currency_symbol'] ?? 'RM'); ?>">
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-group">
                         <label class="form-label">Currency Code</label>
-                        <input type="text" class="form-control" name="currency_code" value="MYR">
+                        <input type="text" class="form-control" name="currency_code" value="<?php echo htmlspecialchars($settings['currency_code'] ?? 'MYR'); ?>">
                     </div>
                 </div>
             </div>
