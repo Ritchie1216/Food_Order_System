@@ -128,17 +128,31 @@ $status_colors = [
                                 <?php endforeach; ?>
                             </tbody>
                             <tfoot>
+                                <?php
+                                // Get current tax settings
+                                $settings_query = "SELECT tax_rate FROM settings LIMIT 1";
+                                $settings_stmt = $db->prepare($settings_query);
+                                $settings_stmt->execute();
+                                $settings = $settings_stmt->fetch(PDO::FETCH_ASSOC);
+                                
+                                // Get tax rate from settings or use default
+                                $tax_rate = floatval($settings['tax_rate'] ?? 9);
+                                
+                                // Calculate SST and total
+                                $sst_amount = $subtotal * ($tax_rate / 100);
+                                $total_with_sst = $subtotal + $sst_amount;
+                                ?>
                                 <tr>
                                     <td colspan="3" class="text-end">Subtotal:</td>
                                     <td class="text-end">RM <?php echo number_format($subtotal, 2); ?></td>
                                 </tr>
                                 <tr>
-                                    <td colspan="3" class="text-end">SST (6%):</td>
-                                    <td class="text-end">RM <?php echo number_format($subtotal * 0.06, 2); ?></td>
+                                    <td colspan="3" class="text-end">SST (<?php echo number_format($tax_rate, 1); ?>%):</td>
+                                    <td class="text-end">RM <?php echo number_format($sst_amount, 2); ?></td>
                                 </tr>
                                 <tr>
                                     <td colspan="3" class="text-end fw-bold">Total Amount:</td>
-                                    <td class="text-end fw-bold">RM <?php echo number_format($subtotal * 1.06, 2); ?></td>
+                                    <td class="text-end fw-bold">RM <?php echo number_format($total_with_sst, 2); ?></td>
                                 </tr>
                             </tfoot>
                         </table>
