@@ -4,6 +4,16 @@ require_once(__DIR__ . '/../config/Database.php');
 require_once(__DIR__ . '/../classes/Auth.php');
 require_once(__DIR__ . '/../classes/Order.php');
 
+// Add custom rounding function
+function roundToNearestFiveCents($number) {
+    // Multiply by 20 to convert to cents and make it easier to round to nearest 5
+    $cents = $number * 20;
+    // Round to nearest integer
+    $roundedCents = round($cents);
+    // Convert back to original scale
+    return $roundedCents / 20;
+}
+
 $database = new Database();
 $db = $database->getConnection();
 $auth = new Auth($db);
@@ -157,6 +167,7 @@ if (isset($_POST['process_payment'])) {
         // Calculate SST and total
         $sst_amount = $subtotal * ($tax_rate / 100);  // Calculate SST using tax rate from settings
         $total_with_sst = $subtotal + $sst_amount; // Final total with SST
+        $rounded_total = roundToNearestFiveCents($total_with_sst); // Round the total
         
         // Store receipt data in session for printing
         $_SESSION['receipt_data'] = [
@@ -167,7 +178,7 @@ if (isset($_POST['process_payment'])) {
             'subtotal' => $subtotal,
             'tax_rate' => $tax_rate,
             'tax_amount' => $sst_amount,
-            'total_amount' => $total_with_sst,
+            'total_amount' => $rounded_total,
             'cash_received' => $cash_received,
             'change_amount' => $change,
             'payment_date' => date('Y-m-d H:i:s')
@@ -912,6 +923,7 @@ $page_title = "Payment Counter";
                         // Calculate SST and total
                         $sst_amount = $subtotal * ($tax_rate / 100);  // Calculate SST using tax rate from settings
                         $total_with_sst = $subtotal + $sst_amount; // Final total with SST
+                        $rounded_total = roundToNearestFiveCents($total_with_sst); // Round the total
                         ?>
                         <div class="amount-breakdown">
                             <div class="amount-row">
@@ -923,7 +935,7 @@ $page_title = "Payment Counter";
                                 <span>RM <?php echo number_format($sst_amount, 2); ?></span>
                             </div>
                             <div class="total-amount">
-                                Total: RM <?php echo number_format($total_with_sst, 2); ?>
+                                Total: RM <?php echo number_format($rounded_total, 2); ?>
                             </div>
                         </div>
 
@@ -933,16 +945,16 @@ $page_title = "Payment Counter";
                                 $table_order_ids = array_column($table_orders, 'id');
                                 echo implode(',', $table_order_ids); 
                             ?>">
-                            <input type="hidden" name="amount" value="<?php echo $total_with_sst; ?>">
+                            <input type="hidden" name="amount" value="<?php echo $rounded_total; ?>">
                             
                             <div class="form-group">
                                 <input type="number" 
                                        name="cash_received" 
                                        class="cash-input" 
                                        step="0.01" 
-                                       min="<?php echo $total_with_sst; ?>"
+                                       min="<?php echo $rounded_total; ?>"
                                        placeholder="Enter cash amount"
-                                       onkeyup="calculateChange(this, <?php echo $total_with_sst; ?>)"
+                                       onkeyup="calculateChange(this, <?php echo $rounded_total; ?>)"
                                        required>
                             </div>
                             

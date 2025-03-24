@@ -124,6 +124,16 @@ try {
     $tax_amount = $subtotal * ($tax_rate / 100);  // Calculate tax based on settings
     $total_with_tax = $subtotal + $tax_amount; // Final total with tax
     
+    // Add custom rounding function
+    function roundToNearestFiveCents($number) {
+        // Multiply by 20 to convert to cents and make it easier to round to nearest 5
+        $cents = $number * 20;
+        // Round to nearest integer
+        $roundedCents = round($cents);
+        // Convert back to original scale
+        return $roundedCents / 20;
+    }
+    
     // Store receipt data
     $receipt_data = [
         'payment_id' => $payment_id,
@@ -381,7 +391,7 @@ try {
             </p>
             <p class="total">
                 <span>Total:</span>
-                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($receipt_data['total_amount'], 2); ?></span>
+                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format(roundToNearestFiveCents($receipt_data['total_amount']), 2); ?></span>
             </p>
         </div>
         
@@ -392,7 +402,7 @@ try {
             </p>
             <p>
                 <span>Change:</span>
-                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format($receipt_data['change_amount'], 2); ?></span>
+                <span><?php echo $receipt_data['currency_symbol'] . ' ' . number_format(roundToNearestFiveCents($receipt_data['change_amount']), 2); ?></span>
             </p>
         </div>
         
