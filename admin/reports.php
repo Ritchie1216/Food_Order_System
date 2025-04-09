@@ -2,12 +2,11 @@
 session_start();
 require_once(__DIR__ . '/../config/Database.php');
 require_once(__DIR__ . '/../classes/Auth.php');
-require_once(__DIR__ . '/../classes/Order.php');
 
+// Initialize database connection
 $database = new Database();
 $db = $database->getConnection();
 $auth = new Auth($db);
-$orderModel = new Order($db);
 
 // Check if user is logged in
 if (!$auth->isLoggedIn()) {
@@ -15,129 +14,136 @@ if (!$auth->isLoggedIn()) {
     exit();
 }
 
-// Get date range from query parameters or default to last 30 days
+// Get date range from query parameters or default to current month
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
-$start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-d', strtotime('-30 days'));
-
-// Get report type
-$report_type = isset($_GET['type']) ? $_GET['type'] : 'sales';
+$start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
 
 // Get view mode (daily, weekly, monthly)
 $view_mode = isset($_GET['view']) ? $_GET['view'] : 'daily';
 
 try {
-    // Sales summary data
-    $sales_summary_sql = "SELECT 
-                            COUNT(p.payment_id) as total_transactions,
-                            SUM(p.amount) as total_sales,
-                            AVG(p.amount) as average_sale,
-                            COUNT(DISTINCT o.table_id) as tables_served,
-                            MAX(p.amount) as highest_sale,
-                            MIN(p.amount) as lowest_sale
-                          FROM payments p
-                          JOIN orders o ON p.order_id = o.id
-                          WHERE p.payment_date BETWEEN ? AND ?";
-    
-    $sales_stmt = $db->prepare($sales_summary_sql);
-    $sales_stmt->execute([$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
-    $sales_summary = $sales_stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Sales data based on view mode
-    if ($view_mode == 'weekly') {
-        // Weekly sales data for chart
-        $sales_sql = "SELECT 
-                        YEARWEEK(p.payment_date, 1) as year_week,
-                        MIN(DATE(p.payment_date)) as week_start,
-                        MAX(DATE(p.payment_date)) as week_end,
-                        SUM(p.amount) as total_sales,
-                        COUNT(p.payment_id) as transaction_count
-                      FROM payments p
-                      WHERE p.payment_date BETWEEN ? AND ?
-                      GROUP BY YEARWEEK(p.payment_date, 1)
-                      ORDER BY year_week";
-    } else if ($view_mode == 'monthly') {
-        // Monthly sales data for chart
-        $sales_sql = "SELECT 
-                        DATE_FORMAT(p.payment_date, '%Y-%m') as month,
-                        MIN(DATE(p.payment_date)) as month_start,
-                        MAX(DATE(p.payment_date)) as month_end,
-                        SUM(p.amount) as total_sales,
-                        COUNT(p.payment_id) as transaction_count
-                      FROM payments p
-                      WHERE p.payment_date BETWEEN ? AND ?
-                      GROUP BY DATE_FORMAT(p.payment_date, '%Y-%m')
-                      ORDER BY month";
-    } else {
-        // Daily sales data for chart (default)
-        $sales_sql = "SELECT 
-                        DATE(p.payment_date) as sale_date,
-                        SUM(p.amount) as total_sales,
-                        COUNT(p.payment_id) as transaction_count
-                      FROM payments p
-                      WHERE p.payment_date BETWEEN ? AND ?
-                      GROUP BY DATE(p.payment_date)
-                      ORDER BY sale_date";
+    // Function to get sales summary
+    function getSalesSummary($db, $start_date, $end_date) {
+        $sql = "SELECT 
+                COUNT(DISTINCT o.id) as total_orders,
+                COALESCE(SUM(oi.quantity * mi.price), 0) as total_sales,
+                COALESCE(AVG(oi.quantity * mi.price), 0) as average_sale,
+                COALESCE(MAX(oi.quantity * mi.price), 0) as highest_sale
+            FROM orders o
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+            WHERE DATE(o.created_at) >= :start_date 
+            AND DATE(o.created_at) <= :end_date
+            AND o.status IN ('completed', 'paid')";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->bindParam(':start_date', $start_date);
+        $stmt->bindParam(':end_date', $end_date);
+        $stmt->execute();
+        
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Initialize values if null
+        $total_orders = $result['total_orders'] ?? 0;
+        $total_sales = $result['total_sales'] ?? 0;
+        $average_sale = $result['average_sale'] ?? 0;
+        $highest_sale = $result['highest_sale'] ?? 0;
+        
+        // Format values
+        return [
+            'total_orders' => (int)$total_orders,
+            'total_sales' => number_format((float)$total_sales, 2),
+            'average_sale' => number_format((float)$average_sale, 2),
+            'highest_sale' => number_format((float)$highest_sale, 2)
+        ];
     }
-    
-    $sales_stmt = $db->prepare($sales_sql);
-    $sales_stmt->execute([$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
-    $sales_data = $sales_stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Top selling items
-    $top_items_sql = "SELECT 
-                        m.name as item_name,
+
+    // Function to get top selling items
+    function getTopSellingItems($db, $start_date, $end_date, $limit = 10) {
+        $sql = "SELECT 
+                mi.name,
                         SUM(oi.quantity) as quantity_sold,
-                        SUM(oi.quantity * m.price) as total_sales
+                SUM(oi.quantity * mi.price) as total_sales
                       FROM order_items oi
-                      JOIN menu_items m ON oi.menu_item_id = m.id
+            JOIN menu_items mi ON oi.menu_item_id = mi.id
                       JOIN orders o ON oi.order_id = o.id
-                      JOIN payments p ON o.id = p.order_id
-                      WHERE p.payment_date BETWEEN ? AND ?
-                      GROUP BY m.id
+            WHERE DATE(o.created_at) BETWEEN :start_date AND :end_date
+            AND o.status IN ('completed', 'paid')
+            GROUP BY mi.id, mi.name
                       ORDER BY quantity_sold DESC
-                      LIMIT 10";
-    
-    $items_stmt = $db->prepare($top_items_sql);
-    $items_stmt->execute([$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
-    $top_items = $items_stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Sales by table
-    $table_sales_sql = "SELECT 
-                          t.table_number,
-                          COUNT(p.payment_id) as transaction_count,
-                          SUM(p.amount) as total_sales
-                        FROM payments p
-                        JOIN orders o ON p.order_id = o.id
-                        JOIN tables t ON o.table_id = t.id
-                        WHERE p.payment_date BETWEEN ? AND ?
-                        GROUP BY t.table_number
-                        ORDER BY total_sales DESC";
-    
-    $table_stmt = $db->prepare($table_sales_sql);
-    $table_stmt->execute([$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
-    $table_sales = $table_stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Prepare chart data
-    $chart_labels = [];
-    $chart_data = [];
-    $chart_transactions = [];
-    
-    foreach ($sales_data as $period) {
-        if ($view_mode == 'weekly') {
-            // Format: "Week 1 Jan - 7 Jan"
-            $chart_labels[] = 'Week ' . date('d M', strtotime($period['week_start'])) . ' - ' . date('d M', strtotime($period['week_end']));
-        } else if ($view_mode == 'monthly') {
-            // Format: "Jan 2023"
-            $chart_labels[] = date('M Y', strtotime($period['month'] . '-01'));
-        } else {
-            // Daily format: "1 Jan"
-            $chart_labels[] = date('d M', strtotime($period['sale_date']));
+            LIMIT :limit";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->bindParam(':start_date', $start_date);
+        $stmt->bindParam(':end_date', $end_date);
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Function to get sales data for chart
+    function getSalesData($db, $start_date, $end_date, $view_mode) {
+        $group_by = '';
+        $date_format = '';
+        
+        switch ($view_mode) {
+            case 'weekly':
+                $group_by = 'YEARWEEK(o.created_at, 1)';
+                $date_format = "CONCAT('Week ', WEEK(o.created_at), ' ', DATE_FORMAT(o.created_at, '%b %Y'))";
+                break;
+            case 'monthly':
+                $group_by = "DATE_FORMAT(o.created_at, '%Y-%m')";
+                $date_format = "DATE_FORMAT(o.created_at, '%b %Y')";
+                break;
+            default: // daily
+                $group_by = "DATE(o.created_at)";
+                $date_format = "DATE_FORMAT(o.created_at, '%d %b')";
+                break;
+        }
+
+        $sql = "SELECT 
+                {$date_format} as period,
+                COUNT(DISTINCT o.id) as order_count,
+                COALESCE(SUM(oi.quantity * mi.price), 0) as total_sales
+            FROM orders o
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+            WHERE DATE(o.created_at) >= :start_date 
+            AND DATE(o.created_at) <= :end_date
+            AND o.status IN ('completed', 'paid')
+            GROUP BY {$group_by}
+            ORDER BY o.created_at";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->bindParam(':start_date', $start_date);
+        $stmt->bindParam(':end_date', $end_date);
+        $stmt->execute();
+        
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // If no results, return empty array with default structure
+        if (empty($results)) {
+            return [[
+                'period' => $view_mode == 'daily' ? date('d M') : ($view_mode == 'weekly' ? 'Week ' . date('W M Y') : date('M Y')),
+                'order_count' => 0,
+                'total_sales' => 0
+            ]];
         }
         
-        $chart_data[] = round(floatval($period['total_sales']), 2);
-        $chart_transactions[] = intval($period['transaction_count']);
+        return $results;
     }
-    
+
+    // Get all required data
+    $sales_summary = getSalesSummary($db, $start_date, $end_date);
+    $top_items = getTopSellingItems($db, $start_date, $end_date);
+    $sales_data = getSalesData($db, $start_date, $end_date, $view_mode);
+
+    // Prepare chart data
+    $chart_labels = array_column($sales_data, 'period');
+    $chart_values = array_column($sales_data, 'total_sales');
+    $chart_orders = array_column($sales_data, 'order_count');
+
 } catch (Exception $e) {
     $error_message = $e->getMessage();
 }
@@ -149,122 +155,104 @@ $page_title = "Sales Reports";
 ob_start();
 ?>
 
-<!-- Page content -->
 <div class="container-fluid py-4">
-    <div class="page-header">
-        <h1 class="page-title">
-            <i class="fas fa-chart-line"></i>
-            Sales Reports
-        </h1>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title mb-0">
+                        <i class="fas fa-chart-line me-2"></i>Sales Reports
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <form class="row g-3 align-items-center mb-4">
+                        <div class="col-auto">
+                            <label class="form-label">Date Range:</label>
+                        </div>
+                        <div class="col-auto">
+                            <input type="date" class="form-control" name="start_date" value="<?php echo $start_date; ?>">
+                        </div>
+                        <div class="col-auto">
+                            <input type="date" class="form-control" name="end_date" value="<?php echo $end_date; ?>">
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label">View:</label>
     </div>
-
-    <div class="date-filter">
-        <form class="date-inputs">
-            <input type="date" class="date-input" id="start_date" name="start_date" 
-                   value="<?php echo $start_date; ?>">
-            <input type="date" class="date-input" id="end_date" name="end_date" 
-                   value="<?php echo $end_date; ?>">
-            <input type="hidden" name="type" value="<?php echo $report_type; ?>">
-            <div class="view-selector">
-                <label>View:</label>
+                        <div class="col-auto">
                 <div class="btn-group" role="group">
                     <a href="?start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>&view=daily" 
-                       class="btn btn-sm <?php echo $view_mode == 'daily' ? 'btn-primary' : 'btn-outline-primary'; ?>">Daily</a>
+                                   class="btn <?php echo $view_mode == 'daily' ? 'btn-primary' : 'btn-outline-primary'; ?>">Daily</a>
                     <a href="?start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>&view=weekly" 
-                       class="btn btn-sm <?php echo $view_mode == 'weekly' ? 'btn-primary' : 'btn-outline-primary'; ?>">Weekly</a>
+                                   class="btn <?php echo $view_mode == 'weekly' ? 'btn-primary' : 'btn-outline-primary'; ?>">Weekly</a>
                     <a href="?start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>&view=monthly" 
-                       class="btn btn-sm <?php echo $view_mode == 'monthly' ? 'btn-primary' : 'btn-outline-primary'; ?>">Monthly</a>
+                                   class="btn <?php echo $view_mode == 'monthly' ? 'btn-primary' : 'btn-outline-primary'; ?>">Monthly</a>
                 </div>
             </div>
-            <button type="submit" class="filter-btn">
-                <i class="fas fa-filter"></i>
-                Generate Report
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sync-alt me-2"></i>Generate Report
             </button>
+                        </div>
         </form>
-    </div>
 
     <?php if (isset($error_message)): ?>
     <div class="alert alert-danger">
-        <i class="fas fa-exclamation-circle"></i>
-        <?php echo $error_message; ?>
+                            <i class="fas fa-exclamation-circle me-2"></i><?php echo $error_message; ?>
     </div>
     <?php else: ?>
-
-    <div class="summary-cards">
-        <div class="summary-card highlight-card">
-            <div class="summary-icon">
-                <i class="fas fa-money-bill-wave"></i>
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card bg-primary text-white">
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2">Total Sales</h6>
+                                        <h3 class="card-title mb-0">RM <?php echo $sales_summary['total_sales']; ?></h3>
             </div>
-            <div class="summary-info">
-                <h3>Total Amount</h3>
-                <p>RM <?php echo number_format($sales_summary['total_sales'] ?? 0, 2); ?></p>
             </div>
         </div>
-        <div class="summary-card">
-            <div class="summary-icon">
-                <i class="fas fa-receipt"></i>
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2">Total Orders</h6>
+                                        <h3 class="card-title mb-0"><?php echo $sales_summary['total_orders']; ?></h3>
             </div>
-            <div class="summary-info">
-                <h3>Transactions</h3>
-                <p><?php echo number_format($sales_summary['total_transactions'] ?? 0); ?></p>
-            </div>
-        </div>
-        <div class="summary-card">
-            <div class="summary-icon">
-                <i class="fas fa-calculator"></i>
-            </div>
-            <div class="summary-info">
-                <h3>Average Sale</h3>
-                <p>RM <?php echo number_format($sales_summary['average_sale'] ?? 0, 2); ?></p>
             </div>
         </div>
-        <div class="summary-card">
-            <div class="summary-icon">
-                <i class="fas fa-arrow-up"></i>
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2">Average Sale</h6>
+                                        <h3 class="card-title mb-0">RM <?php echo $sales_summary['average_sale']; ?></h3>
             </div>
-            <div class="summary-info">
-                <h3>Highest Sale</h3>
-                <p>RM <?php echo number_format($sales_summary['highest_sale'] ?? 0, 2); ?></p>
+            </div>
+        </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white">
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2">Highest Sale</h6>
+                                        <h3 class="card-title mb-0">RM <?php echo $sales_summary['highest_sale']; ?></h3>
+            </div>
             </div>
         </div>
     </div>
 
-    <div class="report-section">
-        <div class="section-header">
-            <h2>
-                <?php 
-                if ($view_mode == 'weekly') {
-                    echo 'Weekly Sales';
-                } else if ($view_mode == 'monthly') {
-                    echo 'Monthly Sales';
-                } else {
-                    echo 'Daily Sales';
-                }
-                ?>
-            </h2>
-            <div class="export-options">
-                <a href="export_report.php?type=<?php echo $view_mode; ?>_sales&start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>" class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-download"></i> Export
-                </a>
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Sales Trend</h5>
             </div>
-        </div>
-        <div class="chart-container">
-            <canvas id="salesChart"></canvas>
+                            <div class="card-body">
+                                <canvas id="salesChart" height="300"></canvas>
         </div>
     </div>
 
-    <div class="report-row">
-        <div class="report-section">
-            <div class="section-header">
-                <h2>Top Selling Items</h2>
-                <div class="export-options">
-                    <a href="export_report.php?type=top_items&start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-download"></i> Export
-                    </a>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Top Selling Items</h5>
                 </div>
-            </div>
+                                    <div class="card-body">
             <div class="table-responsive">
-                <table class="report-table">
+                                            <table class="table">
                     <thead>
                         <tr>
                             <th>Item</th>
@@ -273,63 +261,25 @@ ob_start();
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (empty($top_items)): ?>
-                        <tr>
-                            <td colspan="3" class="text-center">No data available</td>
-                        </tr>
-                        <?php else: ?>
                             <?php foreach ($top_items as $item): ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($item['item_name']); ?></td>
+                                                        <td><?php echo htmlspecialchars($item['name']); ?></td>
                                 <td><?php echo number_format($item['quantity_sold']); ?></td>
                                 <td>RM <?php echo number_format($item['total_sales'], 2); ?></td>
                             </tr>
                             <?php endforeach; ?>
-                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
-
-        <div class="report-section">
-            <div class="section-header">
-                <h2>Sales by Table</h2>
-                <div class="export-options">
-                    <a href="export_report.php?type=table_sales&start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-download"></i> Export
-                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
-            </div>
-            <div class="table-responsive">
-                <table class="report-table">
-                    <thead>
-                        <tr>
-                            <th>Table</th>
-                            <th>Transactions</th>
-                            <th>Total Sales</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($table_sales)): ?>
-                        <tr>
-                            <td colspan="3" class="text-center">No data available</td>
-                        </tr>
-                        <?php else: ?>
-                            <?php foreach ($table_sales as $table): ?>
-                            <tr>
-                                <td>Table <?php echo htmlspecialchars($table['table_number']); ?></td>
-                                <td><?php echo number_format($table['transaction_count']); ?></td>
-                                <td>RM <?php echo number_format($table['total_sales'], 2); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
             </div>
         </div>
     </div>
-
-    <?php endif; ?>
 </div>
 
 <?php
@@ -339,271 +289,162 @@ $content = ob_get_clean();
 $extra_css = '
 <style>
     :root {
-        --primary: #c8a165;
-        --secondary: #b38b4d;
-        --success: #4caf50;
-        --warning: #ff9800;
-        --danger: #f44336;
-        --bg-dark: #1a1a1a;
-        --surface-dark: #2d2d2d;
-        --text-primary: #ffffff;
-        --text-secondary: #cccccc;
-        --border-color: rgba(200, 161, 101, 0.2);
-        --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --gold: #c8a165;
+    --gold-light: #d4b483;
+    --gold-dark: #a67c3d;
+    --black: #1a1a1a;
+    --black-light: #2d2d2d;
+    --text-light: #ffffff;
+    --text-muted: #cccccc;
     }
 
     body {
-        background: var(--bg-dark);
-        color: var(--text-primary);
-    }
+    background: var(--black);
+    color: var(--text-light);
+}
 
-    .page-header {
-        background: var(--surface-dark);
-        padding: 2rem;
-        border-radius: 16px;
-        margin-bottom: 2rem;
-        box-shadow: var(--card-shadow);
-        border: 1px solid var(--border-color);
-    }
+.card {
+    background: var(--black-light);
+    border: 1px solid rgba(200, 161, 101, 0.2);
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
 
-    .page-title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: var(--text-primary);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
+.card-header {
+    background: linear-gradient(145deg, var(--black-light), var(--black));
+    border-bottom: 1px solid rgba(200, 161, 101, 0.2);
+    padding: 1.5rem;
+}
 
-    .page-title i {
-        color: var(--primary);
-    }
+.card-title {
+    color: var(--gold);
+    font-weight: 600;
+}
 
-    .date-filter {
-        background: var(--surface-dark);
+.card-body {
         padding: 1.5rem;
-        border-radius: 16px;
-        margin-bottom: 2rem;
-        box-shadow: var(--card-shadow);
-        border: 1px solid var(--border-color);
-    }
+}
 
-    .date-inputs {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        flex-wrap: wrap;
-    }
+.form-control {
+    background: var(--black);
+    border: 1px solid rgba(200, 161, 101, 0.2);
+    border-radius: 8px;
+    color: var(--text-light);
+}
 
-    .date-input {
-        padding: 0.75rem 1rem;
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        font-size: 0.95rem;
-        background: var(--bg-dark);
-        color: var(--text-primary);
-    }
+.form-control:focus {
+    background: var(--black);
+    border-color: var(--gold);
+    color: var(--text-light);
+    box-shadow: 0 0 0 0.2rem rgba(200, 161, 101, 0.25);
+}
 
-    .filter-btn {
-        padding: 0.75rem 1.5rem;
-        background: linear-gradient(145deg, var(--primary), var(--secondary));
-        color: var(--bg-dark);
-        border: none;
-        border-radius: 12px;
+.form-label {
+    color: var(--gold);
+    font-weight: 500;
+}
+
+.btn {
+    border-radius: 8px;
+    padding: 0.5rem 1.5rem;
         font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
         transition: all 0.3s ease;
     }
 
-    .filter-btn:hover {
+.btn-primary {
+    background: linear-gradient(145deg, var(--gold), var(--gold-dark));
+    border: none;
+    color: var(--black);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(145deg, var(--gold-light), var(--gold));
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(200, 161, 101, 0.3);
     }
 
-    .summary-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
+.btn-outline-primary {
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    background: transparent;
+}
 
-    .summary-card {
-        background: var(--surface-dark);
-        border-radius: 16px;
-        padding: 1.5rem;
-        display: flex;
-        align-items: center;
-        gap: 1.5rem;
-        box-shadow: var(--card-shadow);
-        border: 1px solid var(--border-color);
-        transition: all 0.3s ease;
-    }
+.btn-outline-primary:hover {
+    background: var(--gold);
+    color: var(--black);
+}
 
-    .summary-card:hover {
-        transform: translateY(-2px);
-        border-color: var(--primary);
-    }
+.table {
+    color: var(--text-light);
+}
 
-    .summary-icon {
-        width: 60px;
-        height: 60px;
-        background: linear-gradient(145deg, var(--primary), var(--secondary));
-        color: var(--bg-dark);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-    }
-
-    .summary-info h3 {
-        font-size: 1rem;
-        color: var(--text-secondary);
-        margin: 0 0 0.5rem 0;
-    }
-
-    .summary-info p {
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: var(--primary);
-        margin: 0;
-    }
-
-    .report-section {
-        background: var(--surface-dark);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        box-shadow: var(--card-shadow);
-        border: 1px solid var(--border-color);
-    }
-
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .section-header h2 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin: 0;
-    }
-
-    .report-table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-    }
-
-    .report-table th {
+.table th {
         background: rgba(200, 161, 101, 0.1);
-        padding: 1rem 1.5rem;
+    border-top: none;
+    color: var(--gold);
         font-weight: 600;
-        color: var(--primary);
         text-transform: uppercase;
         font-size: 0.85rem;
         letter-spacing: 0.05em;
-        border-bottom: 2px solid var(--border-color);
-    }
+}
 
-    .report-table td {
-        padding: 1rem 1.5rem;
-        border-bottom: 1px solid var(--border-color);
-        color: var(--text-secondary);
-        font-size: 0.95rem;
-    }
+.table td {
+    border-color: rgba(200, 161, 101, 0.1);
+    color: var(--text-muted);
+}
 
-    .report-table tr:hover td {
+.table tr:hover td {
         background: rgba(200, 161, 101, 0.05);
-        color: var(--text-primary);
-    }
+    color: var(--text-light);
+}
 
-    .report-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-        gap: 1.5rem;
-    }
+/* Card color variations */
+.bg-primary {
+    background: linear-gradient(145deg, var(--gold), var(--gold-dark)) !important;
+}
 
-    .btn-outline-primary {
-        color: var(--primary);
-        border: 1px solid var(--primary);
-        background: transparent;
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
-        transition: all 0.3s ease;
-        text-decoration: none;
-        font-size: 0.875rem;
-    }
+.bg-success {
+    background: linear-gradient(145deg, #2d3436, #1a1a1a) !important;
+    border: 1px solid var(--gold) !important;
+}
 
-    .btn-outline-primary:hover {
-        background: var(--primary);
-        color: var(--bg-dark);
-    }
+.bg-info {
+    background: linear-gradient(145deg, #2d3436, #1a1a1a) !important;
+    border: 1px solid var(--gold) !important;
+}
 
-    .btn-primary {
-        background: var(--primary);
-        color: var(--bg-dark);
-        border: none;
-    }
+.bg-warning {
+    background: linear-gradient(145deg, #2d3436, #1a1a1a) !important;
+    border: 1px solid var(--gold) !important;
+}
 
-    .btn-group .btn {
-        border: 1px solid var(--primary);
-    }
+.alert-danger {
+    background: var(--black-light);
+    border: 1px solid #dc3545;
+    color: #dc3545;
+}
 
-    .view-selector {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .view-selector label {
-        font-weight: 500;
-        color: var(--text-secondary);
-        margin: 0;
-    }
-
-    .highlight-card {
-        background: linear-gradient(145deg, var(--surface-dark), var(--bg-dark));
-        border: 1px solid var(--primary);
-    }
-
-    .highlight-card .summary-icon {
-        background: var(--primary);
-        color: var(--bg-dark);
-    }
-
-    .highlight-card .summary-info h3 {
-        color: var(--text-secondary);
-    }
-
-    .highlight-card .summary-info p {
-        color: var(--primary);
-        font-size: 2rem;
+/* Chart customization */
+.chart-container {
+    background: var(--black-light);
+    border-radius: 10px;
+    padding: 1rem;
     }
 
     @media (max-width: 768px) {
-        .date-inputs {
-            flex-direction: column;
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
         }
         
-        .date-input {
+    .btn-group {
+        display: flex;
             width: 100%;
         }
         
-        .report-row {
-            grid-template-columns: 1fr;
-        }
-
-        .summary-cards {
-            grid-template-columns: 1fr;
+    .btn-group .btn {
+        flex: 1;
+        margin-bottom: 0;
         }
     }
 </style>';
@@ -613,99 +454,79 @@ $extra_js = '
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        const labels = ' . json_encode($chart_labels) . ';
-        const salesData = ' . json_encode($chart_data) . ';
-        const transactionData = ' . json_encode($chart_transactions) . ';
-        
-        const ctx = document.getElementById("salesChart").getContext("2d");
-        const salesGradient = ctx.createLinearGradient(0, 0, 0, 400);
-        salesGradient.addColorStop(0, "rgba(200, 161, 101, 0.4)");
-        salesGradient.addColorStop(1, "rgba(200, 161, 101, 0.0)");
-        
+    const ctx = document.getElementById("salesChart").getContext("2d");
+    
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, "rgba(200, 161, 101, 0.4)");
+    gradient.addColorStop(1, "rgba(200, 161, 101, 0.0)");
+    
+    // Set chart defaults
         Chart.defaults.color = "#cccccc";
         Chart.defaults.borderColor = "rgba(200, 161, 101, 0.1)";
         
-        const salesChart = new Chart(ctx, {
+    new Chart(ctx, {
             type: "line",
             data: {
-                labels: labels,
-                datasets: [
-                    {
+            labels: ' . json_encode($chart_labels) . ',
+            datasets: [{
                         label: "Sales (RM)",
-                        data: salesData,
-                        backgroundColor: salesGradient,
-                        borderColor: "rgba(200, 161, 101, 1)",
-                        borderWidth: 3,
+                data: ' . json_encode($chart_values) . ',
+                borderColor: "#c8a165",
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.4,
+                borderWidth: 2,
+                pointBackgroundColor: "#1a1a1a",
+                pointBorderColor: "#c8a165",
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }, {
+                label: "Orders",
+                data: ' . json_encode($chart_orders) . ',
+                borderColor: "#a67c3d",
+                backgroundColor: "rgba(166, 124, 61, 0.1)",
                         fill: true,
                         tension: 0.4,
-                        pointBackgroundColor: "#2d2d2d",
-                        pointBorderColor: "rgba(200, 161, 101, 1)",
+                borderWidth: 2,
+                pointBackgroundColor: "#1a1a1a",
+                pointBorderColor: "#a67c3d",
                         pointBorderWidth: 2,
                         pointRadius: 4,
-                        pointHoverRadius: 7,
-                        pointHoverBackgroundColor: "#2d2d2d",
-                        pointHoverBorderColor: "rgba(200, 161, 101, 1)",
-                        pointHoverBorderWidth: 3,
-                        yAxisID: "y"
-                    },
-                    {
-                        label: "Transactions",
-                        data: transactionData,
-                        type: "bar",
-                        backgroundColor: "rgba(76, 175, 80, 0.7)",
-                        borderColor: "rgba(76, 175, 80, 1)",
-                        borderWidth: 1,
-                        borderRadius: 4,
-                        yAxisID: "y1"
-                    }
-                ]
+                pointHoverRadius: 6
+            }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    mode: "index",
-                    intersect: false,
-                },
                 plugins: {
                     legend: {
                         position: "top",
                         labels: {
-                            usePointStyle: true,
-                            padding: 20,
-                            color: "#ffffff",
+                        color: "#cccccc",
                             font: {
                                 size: 12
-                            }
+                        },
+                        usePointStyle: true,
+                        padding: 20
                         }
                     },
                     tooltip: {
-                        mode: "index",
-                        intersect: false,
-                        padding: 12,
-                        bodySpacing: 6,
-                        titleSpacing: 6,
                         backgroundColor: "rgba(45, 45, 45, 0.9)",
                         titleColor: "#ffffff",
                         bodyColor: "#ffffff",
                         borderColor: "rgba(200, 161, 101, 0.3)",
                         borderWidth: 1,
+                    padding: 12,
                         displayColors: true,
-                        usePointStyle: true,
-                        titleFont: {
-                            size: 14,
-                            weight: "bold"
-                        },
-                        bodyFont: {
-                            size: 13
-                        },
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || "";
                                 if (label) {
                                     label += ": ";
                                 }
-                                if (context.datasetIndex === 0) {
+                            if (context.dataset.label.includes("Sales")) {
                                     label += "RM " + context.parsed.y.toFixed(2);
                                 } else {
                                     label += context.parsed.y;
@@ -718,51 +539,13 @@ $extra_js = '
                 scales: {
                     y: {
                         beginAtZero: true,
-                        position: "left",
-                        title: {
-                            display: true,
-                            text: "Sales (RM)",
-                            color: "rgba(200, 161, 101, 1)",
-                            font: {
-                                weight: "bold",
-                                size: 13
-                            }
-                        },
                         grid: {
                             color: "rgba(200, 161, 101, 0.1)",
                             drawBorder: false
                         },
                         ticks: {
+                        color: "#cccccc",
                             padding: 10,
-                            color: "#cccccc",
-                            font: {
-                                size: 11
-                            },
-                            callback: function(value) {
-                                return "RM " + value.toFixed(2);
-                            }
-                        }
-                    },
-                    y1: {
-                        beginAtZero: true,
-                        position: "right",
-                        grid: {
-                            drawOnChartArea: false,
-                            drawBorder: false
-                        },
-                        title: {
-                            display: true,
-                            text: "Transactions",
-                            color: "rgba(76, 175, 80, 1)",
-                            font: {
-                                weight: "bold",
-                                size: 13
-                            }
-                        },
-                        ticks: {
-                            padding: 10,
-                            precision: 0,
-                            color: "#cccccc",
                             font: {
                                 size: 11
                             }
@@ -774,22 +557,16 @@ $extra_js = '
                             drawBorder: false
                         },
                         ticks: {
+                        color: "#cccccc",
                             padding: 10,
-                            color: "#cccccc",
                             font: {
                                 size: 11
-                            }
                         }
-                    }
-                },
-                animations: {
-                    tension: {
-                        duration: 1000,
-                        easing: "linear"
                     }
                 }
             }
-        });
+        }
+    });
     });
 </script>';
 

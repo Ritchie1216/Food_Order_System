@@ -23,10 +23,25 @@ if (!$order_id) {
     exit();
 }
 
-// Get order details
-    $order = $orderModel->getOrder($order_id);
+// Handle status update
+if (isset($_POST['update_status']) && isset($_POST['new_status'])) {
+    $new_status = $_POST['new_status'];
+    if ($orderModel->updateStatus($order_id, $new_status)) {
+        // Redirect to refresh the page after update
+        header("Location: order_details.php?id=" . $order_id . "&success=1");
+        exit();
+    } else {
+        $error_message = "Failed to update order status";
+    }
+}
 
-    if (!$order) {
+// Add success message handling
+$success_message = isset($_GET['success']) ? "Order status updated successfully" : "";
+
+// Get order details
+$order = $orderModel->getOrder($order_id);
+
+if (!$order) {
     header('Location: orders.php');
     exit();
 }
@@ -46,6 +61,22 @@ ob_start();
             <span class="order-number">#<?php echo str_pad($order_id, 4, '0', STR_PAD_LEFT); ?></span>
         </h1>
     </div>
+
+    <?php if (isset($success_message) && !empty($success_message)): ?>
+    <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+        <i class="fas fa-check-circle me-2"></i>
+        <?php echo $success_message; ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
+
+    <?php if (isset($error_message) && !empty($error_message)): ?>
+    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>
+        <?php echo $error_message; ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
 
     <div class="row">
         <!-- Order Summary Card -->
@@ -208,6 +239,8 @@ ob_start();
                                 <select name="new_status" class="form-select">
                                     <option value="pending" <?php echo $order['status'] == 'pending' ? 'selected' : ''; ?>>Pending</option>
                                     <option value="processing" <?php echo $order['status'] == 'processing' ? 'selected' : ''; ?>>Processing</option>
+                                    <option value="completed" <?php echo $order['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
+                                    <option value="cancelled" <?php echo $order['status'] == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                                 </select>
                             </div>
                         </div>

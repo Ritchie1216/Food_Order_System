@@ -34,8 +34,12 @@ if (isset($_POST['update_status'])) {
 try {
     // Update the SQL query to include payment status check
     $sql = "SELECT o.id, o.table_id, t.table_number, o.total_amount, o.status, o.created_at,
-            COUNT(oi.id) as item_count,
-            GROUP_CONCAT(CONCAT(m.name, ' (', oi.quantity, ')') SEPARATOR ', ') as items_list
+            (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) as item_count,
+            GROUP_CONCAT(
+                CONCAT(m.name, ' x', oi.quantity) 
+                ORDER BY m.name 
+                SEPARATOR ', '
+            ) as items_list
             FROM orders o
             LEFT JOIN tables t ON o.table_id = t.id
             LEFT JOIN order_items oi ON o.id = oi.order_id
@@ -141,10 +145,16 @@ ob_start();
                     <div class="order-items">
                         <div class="items-header">
                             <i class="fas fa-utensils"></i>
-                            <span><?php echo $order['item_count']; ?> items</span>
+                            <span><?php echo $order['item_count'] > 0 ? $order['item_count'] . ' items' : 'No items'; ?></span>
                         </div>
                         <div class="items-list">
-                            <?php echo !empty($order['items_list']) ? htmlspecialchars($order['items_list']) : 'No items'; ?>
+                            <?php 
+                            if ($order['item_count'] > 0 && !empty($order['items_list'])) {
+                                echo htmlspecialchars($order['items_list']);
+                            } else {
+                                echo 'No items';
+                            }
+                            ?>
                         </div>
                     </div>
 

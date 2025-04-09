@@ -86,42 +86,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
     background: rgba(212, 175, 55, 0.15);
 }
 
-.notification-btn {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: rgba(212, 175, 55, 0.1);
-    color: var(--primary-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    transition: all 0.3s ease;
-}
-
-.notification-btn:hover {
-    background: rgba(212, 175, 55, 0.15);
-    transform: translateY(-2px);
-}
-
-.notification-badge {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: var(--danger-color);
-    color: var(--text-primary);
-    border-radius: 30px;
-    min-width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 600;
-    border: 2px solid var(--navbar-bg);
-    padding: 0 6px;
-}
-
 .user-profile {
     display: flex;
     align-items: center;
@@ -211,72 +175,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
     margin: 0.5rem 0;
 }
 
-.notification-list {
-    max-height: 360px;
-    overflow-y: auto;
-}
-
-.notification-item {
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
-    transition: all 0.3s ease;
-    background: var(--card-bg);
-}
-
-.notification-item:hover {
-    background: rgba(212, 175, 55, 0.1);
-}
-
-.notification-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: rgba(212, 175, 55, 0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--primary-color);
-}
-
-.notification-content {
-    flex: 1;
-}
-
-.notification-title {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-    font-size: 0.9rem;
-}
-
-.notification-text {
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    margin-bottom: 0.25rem;
-}
-
-.notification-time {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-}
-
-/* Toast Styles */
-.toast {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-}
-
-.toast-header {
-    background: var(--navbar-bg);
-    color: var(--text-primary);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.toast-header .btn-close {
-    filter: invert(1);
-}
-
 @media (max-width: 991.98px) {
     .brand-wrapper {
         width: auto;
@@ -296,11 +194,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
 @media (max-width: 576px) {
     .top-navbar {
         padding: 0 1rem;
-    }
-
-    .notification-btn {
-        width: 38px;
-        height: 38px;
     }
 
     .user-avatar {
@@ -329,63 +222,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
         <!-- Right Menu Items -->
         <div class="d-flex align-items-center ms-auto gap-3">
-            <!-- Notifications -->
-            <div class="dropdown">
-                <button class="btn notification-btn" data-bs-toggle="dropdown">
-                    <i class="fas fa-bell"></i>
-                    <span class="notification-badge">3</span>
-                </button>
-                <div class="dropdown-menu dropdown-menu-end p-0">
-                    <div class="p-3 border-bottom">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0">Notifications</h6>
-                            <a href="#" class="text-muted text-decoration-none" style="font-size: 0.8rem;">Mark all as read</a>
-                        </div>
-                    </div>
-                    <div class="notification-list">
-                        <div class="notification-item">
-                            <div class="d-flex align-items-start">
-                                <div class="notification-icon me-3">
-                                    <i class="fas fa-utensils"></i>
-                                </div>
-                                <div class="notification-content">
-                                    <h6 class="notification-title">New order received</h6>
-                                    <p class="notification-text">Table 5 - 3 items</p>
-                                    <span class="notification-time">2 minutes ago</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="notification-item">
-                            <div class="d-flex align-items-start">
-                                <div class="notification-icon me-3">
-                                    <i class="fas fa-check-circle"></i>
-                                </div>
-                                <div class="notification-content">
-                                    <h6 class="notification-title">Order completed</h6>
-                                    <p class="notification-text">Order #1234 has been completed</p>
-                                    <span class="notification-time">5 minutes ago</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="notification-item">
-                            <div class="d-flex align-items-start">
-                                <div class="notification-icon me-3">
-                                    <i class="fas fa-exclamation-circle"></i>
-                                </div>
-                                <div class="notification-content">
-                                    <h6 class="notification-title">Low stock alert</h6>
-                                    <p class="notification-text">Item "Chicken Wings" is running low</p>
-                                    <span class="notification-time">10 minutes ago</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="p-2 text-center border-top">
-                        <a href="#" class="btn btn-link text-primary text-decoration-none">View all notifications</a>
-                    </div>
-                </div>
-            </div>
-
             <!-- User Profile -->
             <div class="dropdown">
                 <a href="#" class="user-profile text-decoration-none" data-bs-toggle="dropdown">
@@ -429,18 +265,3 @@ $current_page = basename($_SERVER['PHP_SELF']);
         </div>
     </div>
 </nav>
-
-<!-- Toast Notifications -->
-<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
-    <div class="toast" role="alert" id="notificationToast">
-        <div class="toast-header">
-            <i class="fas fa-bell me-2 text-primary"></i>
-            <strong class="me-auto">Notification</strong>
-            <small>Just now</small>
-            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-        </div>
-        <div class="toast-body">
-            <!-- Notification content will be inserted here -->
-        </div>
-    </div>
-</div> 

@@ -173,7 +173,7 @@ class Order extends Model {
             $offset = ($page - 1) * $per_page;
             
             $query = "SELECT o.*, t.table_number, 
-                      COUNT(oi.id) as item_count,
+                      (SELECT SUM(quantity) FROM order_items WHERE order_id = o.id) as item_count,
                       GROUP_CONCAT(
                         JSON_OBJECT(
                             'name', mi.name,
