@@ -194,6 +194,16 @@ try {
         font-size: 1rem;
         color: var(--color-primary);
     }
+    
+    .special-instructions-stat {
+        background: rgba(243, 156, 18, 0.1);
+        border-color: #f39c12;
+        color: #856404;
+    }
+    
+    .special-instructions-stat i {
+        color: #f39c12;
+    }
 
     .orders-table-container {
         background: var(--color-surface);
@@ -233,6 +243,15 @@ try {
 
     .orders-table tr:hover {
         background: var(--color-surface-hover);
+    }
+    
+    .orders-table tr.has-special-instructions {
+        border-left: 4px solid #f39c12;
+        background: rgba(243, 156, 18, 0.05);
+    }
+    
+    .orders-table tr.has-special-instructions:hover {
+        background: rgba(243, 156, 18, 0.1);
     }
 
     .order-number {
@@ -292,6 +311,25 @@ try {
 
     .item-name {
         flex: 1;
+    }
+    
+    .special-instruction {
+        margin-top: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        color: #856404;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-weight: 500;
+    }
+    
+    .special-instruction i {
+        color: #f39c12;
+        font-size: 0.7rem;
     }
 
     .item-btn {
@@ -491,6 +529,11 @@ try {
         .item-name {
             font-size: 0.75rem;
         }
+        
+        .special-instruction {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.4rem;
+        }
     }
     </style>
 </head>
@@ -514,6 +557,24 @@ try {
                     <i class="fas fa-fire"></i>
                     <span>Cooking: <?php echo count($processing_orders); ?></span>
                 </div>
+                <?php 
+                // Count orders with special instructions
+                $orders_with_special_instructions = 0;
+                foreach ($all_orders as $order) {
+                    if (!empty($order['special_instructions'])) {
+                        foreach ($order['special_instructions'] as $instruction) {
+                            if (!empty($instruction['instructions'])) {
+                                $orders_with_special_instructions++;
+                                break;
+                            }
+                        }
+                    }
+                }
+                ?>
+                <div class="stat-box special-instructions-stat">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Special: <?php echo $orders_with_special_instructions; ?></span>
+                </div>
                 <a href="dashboard.php" class="stat-box">
                     <i class="fas fa-times"></i>
                     <span>Exit</span>
@@ -535,7 +596,7 @@ try {
                         <th>Order #</th>
                         <th>Table</th>
                         <th>Time</th>
-                        <th>Items</th>
+                        <th>Items <small style="font-weight: normal; color: #6c757d;">(with special instructions)</small></th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -548,7 +609,19 @@ try {
                         $minutes = round($time_diff / 60);
                         $time_warning = ($is_pending && $minutes > 30) || (!$is_pending && $minutes > 45);
                     ?>
-                    <tr class="<?php echo $is_pending ? 'pending' : 'cooking'; ?>" 
+                    <?php 
+                    // Check if order has special instructions
+                    $has_special_instructions = false;
+                    if (!empty($order['special_instructions'])) {
+                        foreach ($order['special_instructions'] as $instruction) {
+                            if (!empty($instruction['instructions'])) {
+                                $has_special_instructions = true;
+                                break;
+                            }
+                        }
+                    }
+                    ?>
+                    <tr class="<?php echo $is_pending ? 'pending' : 'cooking'; ?><?php echo $has_special_instructions ? ' has-special-instructions' : ''; ?>" 
                         data-order-id="<?php echo $order['id']; ?>"
                         data-status="<?php echo $is_pending ? 'pending' : 'processing'; ?>">
                         <td>
@@ -589,7 +662,15 @@ try {
                                 ?>
                                 <div class="item" data-item-id="<?php echo $index; ?>">
                                     <div class="quantity"><?php echo $quantity; ?>×</div>
-                                    <div class="item-name"><?php echo htmlspecialchars($item_name); ?></div>
+                                    <div class="item-name">
+                                        <?php echo htmlspecialchars($item_name); ?>
+                                        <?php if (!empty($item_instruction)): ?>
+                                            <div class="special-instruction">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                                <span><?php echo htmlspecialchars($item_instruction); ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                     <button class="item-btn" onclick="toggleItemComplete(this)" title="Mark as complete">
                                         <i class="fas fa-check"></i>
                                     </button>
@@ -712,6 +793,16 @@ try {
         } else if (elem.msRequestFullscreen) {
             elem.msRequestFullscreen();
         }
+        
+        // Highlight special instructions
+        document.querySelectorAll('.has-special-instructions').forEach(row => {
+            row.addEventListener('click', function() {
+                this.style.background = 'rgba(243, 156, 18, 0.2)';
+                setTimeout(() => {
+                    this.style.background = '';
+                }, 500);
+            });
+        });
     });
 
     function confirmCancel() {

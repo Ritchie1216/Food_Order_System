@@ -24,7 +24,9 @@ try {
             p.payment_date, p.cash_received, p.change_amount,
             o.id as order_id, t.table_number, o.created_at as order_date,
             GROUP_CONCAT(CONCAT(m.name, ' (', oi.quantity, ')') SEPARATOR ', ') as items_list,
-            SUM(oi.quantity) as item_count
+            SUM(oi.quantity) as item_count,
+            SUM(oi.quantity * oi.price) as order_total,
+            o.total_amount as order_total_with_sst
             FROM payments p
             JOIN orders o ON p.order_id = o.id
             LEFT JOIN tables t ON o.table_id = t.id
@@ -71,7 +73,24 @@ try {
         $grouped_payments[$key]['order_ids'][] = $payment['order_id'];
         $grouped_payments[$key]['payment_amounts'][] = $payment['amount'];
         $grouped_payments[$key]['payment_statuses'][] = $payment['payment_status'];
-        $grouped_payments[$key]['total_amount'] += floatval($payment['amount']);
+        
+        // Calculate total amount - prioritize payment amount, then order total with SST, then calculated order total
+        $amount = floatval($payment['amount']);
+        if ($amount > 0) {
+            $grouped_payments[$key]['total_amount'] += $amount;
+        } else {
+            // If payment amount is 0, use the order total with SST (includes tax)
+            $order_total_with_sst = floatval($payment['order_total_with_sst']);
+            if ($order_total_with_sst > 0) {
+                $grouped_payments[$key]['total_amount'] += $order_total_with_sst;
+            } else {
+                // Fallback to calculated order total without tax
+                $order_total = floatval($payment['order_total']);
+                if ($order_total > 0) {
+                    $grouped_payments[$key]['total_amount'] += $order_total;
+                }
+            }
+        }
         
         // Add items to the items list without duplicates
         $items = explode(', ', $payment['items_list']);
@@ -102,6 +121,12 @@ try {
         // Ensure change amount is calculated correctly for grouped payments
         if (count($group['payment_amounts_array']) > 1) {
             $group['change_amount'] = floatval($group['cash_received']) - $group['total_amount'];
+        }
+        
+        // Ensure total_amount is properly calculated
+        if (!isset($group['total_amount']) || $group['total_amount'] <= 0) {
+            // Fallback: calculate from payment amounts array
+            $group['total_amount'] = array_sum(array_map('floatval', $group['payment_amounts']));
         }
         
         $payments[] = $group;

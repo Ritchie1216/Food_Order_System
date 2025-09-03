@@ -87,138 +87,478 @@ if (!$valid_access) {
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
             :root {
-                --error-color: #ef4444;
-                --warning-color: #f59e0b;
-                --info-color: #3b82f6;
+                --gold-primary: #d4af37;
+                --gold-secondary: #f4e4bc;
+                --gold-accent: #b8860b;
+                --black-primary: #0a0a0a;
+                --black-secondary: #1a1a1a;
+                --black-tertiary: #2d2d2d;
+                --text-gold: #e0c080;
+                --text-light: #f5f5f5;
+                --text-muted: #a0a0a0;
             }
             
             body {
                 font-family: 'Poppins', sans-serif;
-                background-color: #f8fafc;
+                background: linear-gradient(135deg, var(--black-primary) 0%, var(--black-secondary) 50%, var(--black-tertiary) 100%);
                 min-height: 100vh;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 padding: 1rem;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            body::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: 
+                    radial-gradient(circle at 20% 80%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 20%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+                    radial-gradient(circle at 40% 40%, rgba(212, 175, 55, 0.03) 0%, transparent 50%);
+                pointer-events: none;
             }
             
             .error-container {
-                text-align: center;
-                padding: 2.5rem;
-                background: white;
-                border-radius: 1.5rem;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-                          0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                max-width: 450px;
+                max-width: 900px;
                 width: 100%;
+                position: relative;
+                z-index: 10;
             }
             
-            .error-icon {
-                width: 80px;
-                height: 80px;
-                border-radius: 50%;
-                background: <?php
-                    echo match($error_type) {
-                        'expired', 'inactive_qr' => 'var(--warning-color)',
-                        'no_qr' => 'var(--info-color)',
-                        default => 'var(--error-color)'
-                    };
-                ?>;
-                color: white;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 2.5rem;
-                margin: 0 auto 1.5rem;
-            }
-            
-            .error-title {
-                font-size: 1.5rem;
-                font-weight: 600;
-                color: #1f2937;
-                margin-bottom: 1rem;
-            }
-            
-            .error-message {
-                color: #4b5563;
-                margin-bottom: 1.5rem;
-                font-size: 1.1rem;
-                line-height: 1.6;
-            }
-            
-            .help-text {
-                background: #f8fafc;
-                padding: 1rem;
-                border-radius: 1rem;
-                font-size: 0.95rem;
-                color: #64748b;
-                margin-top: 1.5rem;
-                border: 1px solid #e2e8f0;
-            }
-            
-            .help-text i {
-                color: var(--info-color);
-                margin-right: 0.5rem;
+            /* Header Section */
+            .error-header {
+                text-align: center;
+                margin-bottom: 3rem;
+                position: relative;
             }
             
             .restaurant-logo {
-                margin-bottom: 2rem;
-                font-size: 1.5rem;
-                color: #2563eb;
-                font-weight: 700;
+                font-size: 2.5rem;
+                background: linear-gradient(135deg, var(--gold-primary) 0%, var(--text-gold) 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                margin-bottom: 1rem;
+                position: relative;
+                display: inline-block;
             }
             
-            @media (max-width: 480px) {
-                .error-container {
+            .restaurant-logo i {
+                margin-right: 0.75rem;
+                font-size: 2.2rem;
+            }
+            
+            .restaurant-logo::after {
+                content: '';
+                position: absolute;
+                bottom: -8px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 120px;
+                height: 3px;
+                background: linear-gradient(90deg, transparent, var(--gold-primary), transparent);
+            }
+            
+            /* Main Content Grid */
+            .error-content {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+                align-items: center;
+            }
+            
+            /* Left Side - Icon and Title */
+            .error-left {
+                text-align: center;
+                padding: 2rem;
+                background: linear-gradient(145deg, var(--black-secondary) 0%, var(--black-tertiary) 100%);
+                border-radius: 2rem;
+                box-shadow: 
+                    0 25px 50px -12px rgba(0, 0, 0, 0.8),
+                    0 0 0 1px rgba(212, 175, 55, 0.1),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+                position: relative;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(212, 175, 55, 0.2);
+            }
+            
+            .error-left::before {
+                content: '';
+                position: absolute;
+                top: -2px;
+                left: -2px;
+                right: -2px;
+                bottom: -2px;
+                background: linear-gradient(45deg, var(--gold-primary), var(--gold-accent), var(--gold-primary));
+                border-radius: 2rem;
+                z-index: -1;
+                opacity: 0.3;
+                filter: blur(8px);
+            }
+            
+            .error-icon {
+                width: 120px;
+                height: 120px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, var(--gold-primary) 0%, var(--gold-accent) 100%);
+                color: var(--black-primary);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 3.5rem;
+                margin: 0 auto 2rem;
+                box-shadow: 
+                    0 15px 40px rgba(212, 175, 55, 0.4),
+                    0 0 0 1px rgba(212, 175, 55, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .error-icon::before {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+                transform: rotate(45deg);
+                animation: shimmer 3s infinite;
+            }
+            
+            @keyframes shimmer {
+                0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+                100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+            }
+            
+            .error-title {
+                font-size: 2.2rem;
+                font-weight: 700;
+                background: linear-gradient(135deg, var(--text-gold) 0%, var(--gold-primary) 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 1rem;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                position: relative;
+            }
+            
+            .error-title::after {
+                content: '';
+                position: absolute;
+                bottom: -8px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 80px;
+                height: 2px;
+                background: linear-gradient(90deg, transparent, var(--gold-primary), transparent);
+            }
+            
+            /* Right Side - Message and Help */
+            .error-right {
+                padding: 2rem;
+                background: linear-gradient(145deg, var(--black-secondary) 0%, var(--black-tertiary) 100%);
+                border-radius: 2rem;
+                box-shadow: 
+                    0 25px 50px -12px rgba(0, 0, 0, 0.8),
+                    0 0 0 1px rgba(212, 175, 55, 0.1),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+                position: relative;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(212, 175, 55, 0.2);
+            }
+            
+            .error-right::before {
+                content: '';
+                position: absolute;
+                top: -2px;
+                left: -2px;
+                right: -2px;
+                bottom: -2px;
+                background: linear-gradient(45deg, var(--gold-primary), var(--gold-accent), var(--gold-primary));
+                border-radius: 2rem;
+                z-index: -1;
+                opacity: 0.3;
+                filter: blur(8px);
+            }
+            
+            .error-message {
+                color: var(--text-light);
+                margin-bottom: 2rem;
+                font-size: 1.3rem;
+                line-height: 1.7;
+                font-weight: 400;
+                opacity: 0.9;
+                text-align: left;
+            }
+            
+            .help-text {
+                background: linear-gradient(145deg, rgba(212, 175, 55, 0.08) 0%, rgba(212, 175, 55, 0.03) 100%);
+                padding: 1.5rem;
+                border-radius: 1.5rem;
+                font-size: 1.1rem;
+                color: var(--text-muted);
+                border: 1px solid rgba(212, 175, 55, 0.2);
+                backdrop-filter: blur(5px);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .help-text::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: linear-gradient(90deg, transparent, var(--gold-primary), transparent);
+            }
+            
+            .help-text i {
+                color: var(--gold-primary);
+                margin-right: 0.75rem;
+                font-size: 1.2rem;
+            }
+            
+            /* Bottom Action Section */
+            .error-actions {
+                margin-top: 2rem;
+                text-align: center;
+            }
+            
+            .action-button {
+                display: inline-block;
+                padding: 1rem 2rem;
+                background: linear-gradient(135deg, var(--gold-primary) 0%, var(--gold-accent) 100%);
+                color: var(--black-primary);
+                text-decoration: none;
+                border-radius: 2rem;
+                font-weight: 600;
+                font-size: 1.1rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                transition: all 0.3s ease;
+                box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+                border: none;
+                cursor: pointer;
+            }
+            
+            .action-button:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 12px 35px rgba(212, 175, 55, 0.4);
+                color: var(--black-primary);
+                text-decoration: none;
+            }
+            
+            /* Responsive Design */
+            @media (max-width: 768px) {
+                .error-content {
+                    grid-template-columns: 1fr;
+                    gap: 1.5rem;
+                }
+                
+                .error-left, .error-right {
                     padding: 1.5rem;
                 }
                 
                 .error-icon {
-                    width: 60px;
-                    height: 60px;
-                    font-size: 2rem;
+                    width: 100px;
+                    height: 100px;
+                    font-size: 3rem;
                 }
                 
                 .error-title {
-                    font-size: 1.25rem;
+                    font-size: 1.8rem;
+                }
+                
+                .error-message {
+                    font-size: 1.1rem;
+                    text-align: center;
+                }
+                
+                .restaurant-logo {
+                    font-size: 2rem;
+                }
+            }
+            
+            @media (max-width: 480px) {
+                .error-container {
+                    margin: 0.5rem;
+                }
+                
+                .error-left, .error-right {
+                    padding: 1rem;
+                }
+                
+                .error-icon {
+                    width: 80px;
+                    height: 80px;
+                    font-size: 2.5rem;
+                }
+                
+                .error-title {
+                    font-size: 1.5rem;
                 }
                 
                 .error-message {
                     font-size: 1rem;
                 }
+                
+                .restaurant-logo {
+                    font-size: 1.8rem;
+                }
+            }
+            
+            /* Animations */
+            .error-container {
+                animation: slideInUp 0.8s ease-out;
+            }
+            
+            @keyframes slideInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            .error-left {
+                animation: slideInLeft 0.8s ease-out 0.2s both;
+            }
+            
+            .error-right {
+                animation: slideInRight 0.8s ease-out 0.4s both;
+            }
+            
+            @keyframes slideInLeft {
+                from {
+                    opacity: 0;
+                    transform: translateX(-30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            @keyframes slideInRight {
+                from {
+                    opacity: 0;
+                    transform: translateX(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            .error-icon {
+                animation: iconFloat 2s ease-in-out infinite;
+            }
+            
+            @keyframes iconFloat {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-8px); }
+            }
+            
+            /* Decorative Elements */
+            .decorative-line {
+                position: absolute;
+                background: linear-gradient(90deg, transparent, var(--gold-primary), transparent);
+                opacity: 0.3;
+            }
+            
+            .decorative-line.horizontal {
+                height: 1px;
+                width: 100px;
+            }
+            
+            .decorative-line.vertical {
+                width: 1px;
+                height: 100px;
+            }
+            
+            .decorative-line.top-left {
+                top: 20%;
+                left: 10%;
+                transform: rotate(-45deg);
+            }
+            
+            .decorative-line.bottom-right {
+                bottom: 20%;
+                right: 10%;
+                transform: rotate(45deg);
             }
         </style>
     </head>
     <body>
         <div class="error-container">
-            <div class="restaurant-logo">
-                <i class="fas fa-utensils"></i>
-                Gourmet Delights
+            <!-- Decorative Lines -->
+            <div class="decorative-line horizontal top-left"></div>
+            <div class="decorative-line horizontal bottom-right"></div>
+            
+            <!-- Header Section -->
+            <div class="error-header">
+                <div class="restaurant-logo">
+                    <i class="fas fa-utensils"></i>
+                    Gourmet Delights
+                </div>
             </div>
             
-            <div class="error-icon">
-                <i class="fas fa-<?php
-                    echo match($error_type) {
-                        'expired' => 'clock',
-                        'inactive_qr' => 'qrcode',
-                        'inactive_table' => 'chair',
-                        'no_qr' => 'qrcode',
-                        default => 'exclamation-circle'
-                    };
-                ?>"></i>
-            </div>
-            
-            <h1 class="error-title">Access Error</h1>
-            <p class="error-message"><?php echo $error_message; ?></p>
-            
-            <div class="help-text">
-                <i class="fas fa-info-circle"></i>
-                For immediate assistance, please contact our staff or visit the reception desk.
-                <?php if ($error_type === 'expired' || $error_type === 'inactive_qr'): ?>
-                <br><br>
-                <i class="fas fa-sync-alt"></i>
-                Our staff will provide you with a new QR code to access the menu.
-                <?php endif; ?>
+            <!-- Main Content Grid -->
+            <div class="error-content">
+                <!-- Left Side - Icon and Title -->
+                <div class="error-left">
+                    <div class="error-icon">
+                        <i class="fas fa-<?php
+                            echo match($error_type) {
+                                'expired' => 'clock',
+                                'inactive_qr' => 'qrcode',
+                                'inactive_table' => 'chair',
+                                'no_qr' => 'qrcode',
+                                default => 'exclamation-circle'
+                            };
+                        ?>"></i>
+                    </div>
+                    
+                    <h1 class="error-title">Access Error</h1>
+                </div>
+                
+                <!-- Right Side - Message and Help -->
+                <div class="error-right">
+                    <p class="error-message"><?php echo $error_message; ?></p>
+                    
+                    <div class="help-text">
+                        <i class="fas fa-info-circle"></i>
+                        For immediate assistance, please contact our staff or visit the reception desk.
+                        <?php if ($error_type === 'expired' || $error_type === 'inactive_qr'): ?>
+                        <br><br>
+                        <i class="fas fa-sync-alt"></i>
+                        Our staff will provide you with a new QR code to access the menu.
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="error-actions">
+                        <button class="action-button" onclick="window.location.reload()">
+                            <i class="fas fa-redo-alt me-2"></i>
+                            Try Again
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </body>
