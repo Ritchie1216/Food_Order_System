@@ -885,27 +885,47 @@ $page_title = "Payment Counter";
                             </div>
                             <?php 
                             $subtotal = 0;
+                            // Aggregate identical items across all orders at this table
+                            $aggregated_items = [];
                             foreach ($table_orders as $order):
                                 $items = json_decode($order['items'], true);
                                 foreach ($items as $item): 
-                                    $item_total = $item['quantity'] * $item['price'];
-                                    $subtotal += $item_total;
+                                    $key = $item['name'] . '|' . number_format((float)$item['price'], 2, '.', '');
+                                    if (!isset($aggregated_items[$key])) {
+                                        $aggregated_items[$key] = [
+                                            'name' => $item['name'],
+                                            'price' => (float)$item['price'],
+                                            'quantity' => 0,
+                                            'notes' => []
+                                        ];
+                                    }
+                                    $aggregated_items[$key]['quantity'] += (int)$item['quantity'];
+                                    if (!empty($item['instructions'])) {
+                                        $note = trim($item['instructions']);
+                                        if (!in_array($note, $aggregated_items[$key]['notes'], true)) {
+                                            $aggregated_items[$key]['notes'][] = $note;
+                                        }
+                                    }
+                                endforeach;
+                            endforeach; 
+
+                            // Render aggregated items
+                            foreach ($aggregated_items as $agg):
+                                $item_total = $agg['quantity'] * $agg['price'];
+                                $subtotal += $item_total;
                             ?>
                             <div class="item-card">
                                 <div class="item-name">
-                                    <?php echo htmlspecialchars($item['name']); ?>
-                                    <?php if (!empty($item['instructions'])): ?>
-                                        <br><small class="text-muted">Note: <?php echo htmlspecialchars($item['instructions']); ?></small>
+                                    <?php echo htmlspecialchars($agg['name']); ?>
+                                    <?php if (!empty($agg['notes'])): ?>
+                                        <br><small class="text-muted">Note: <?php echo htmlspecialchars(implode(' | ', array_slice($agg['notes'], 0, 2))); ?><?php echo count($agg['notes']) > 2 ? ' ...' : ''; ?></small>
                                     <?php endif; ?>
                                 </div>
-                                <div class="item-quantity"><?php echo $item['quantity']; ?></div>
-                                <div class="item-price">RM <?php echo number_format($item['price'], 2); ?></div>
+                                <div class="item-quantity">x<?php echo $agg['quantity']; ?></div>
+                                <div class="item-price">RM <?php echo number_format($agg['price'], 2); ?></div>
                                 <div class="item-total">RM <?php echo number_format($item_total, 2); ?></div>
                             </div>
-                            <?php 
-                                endforeach;
-                            endforeach; 
-                            ?>
+                            <?php endforeach; ?>
                         </div>
                     </div>
 
